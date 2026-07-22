@@ -23,12 +23,12 @@ onUnmounted(() => {
 <template>
   <!-- Bind the coordinates directly as native CSS variables on the root container -->
   <main class="container" :style="{ '--mouse-x': mouseX + 'px', '--mouse-y': mouseY + 'px' }">
-    <!-- Dynamic Cursor Glow Element -->
+    <!-- Vintage Warm Lamp Glow Element -->
     <div class="cursor-glow"></div>
 
-    <!-- Left Hero Section -->
+    <!-- Left Hero Section (Retro Editorial Style) -->
     <div class="left-side">
-      <div class="glow-orb"></div>
+      <div class="grain-overlay"></div>
       <div class="hero-content fade-in-up">
         <h1 class="welcome">Welcome to <span class="brand-accent">Solify</span></h1>
         <p class="information">
@@ -39,7 +39,7 @@ onUnmounted(() => {
       <div class="copyright fade-in">&copy; 2026 Solify. All rights reserved.</div>
     </div>
 
-    <!-- Right Interaction Section -->
+    <!-- Right Interaction Section (Tactile Card Entry) -->
     <div class="right-side">
       <div class="card-page slide-in-right">
         <h2 class="card-title">Access Your Account</h2>
@@ -67,4 +67,6 @@ onUnmounted(() => {
   </main>
 </template>
 
-<style scoped></style>
+<style scoped>
+/* Scoped styles are left intentionally blank to house everything in the main file below */
+</style>
