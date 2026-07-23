@@ -1,31 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
-
-// Track mouse positioning
-const mouseX = ref(0)
-const mouseY = ref(0)
-
-const updateMousePosition = (event: MouseEvent) => {
-  mouseX.value = event.clientX
-  mouseY.value = event.clientY
-}
-
-onMounted(() => {
-  window.addEventListener('mousemove', updateMousePosition)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('mousemove', updateMousePosition)
-})
 </script>
 
 <template>
   <!-- Bind the coordinates directly as native CSS variables on the root container -->
-  <main class="container" :style="{ '--mouse-x': mouseX + 'px', '--mouse-y': mouseY + 'px' }">
-    <!-- Vintage Warm Lamp Glow Element -->
-    <div class="cursor-glow"></div>
-
+  <main class="container">
     <!-- Left Hero Section (Retro Editorial Style) -->
     <div class="left-side">
       <div class="grain-overlay"></div>
@@ -67,6 +46,4 @@ onUnmounted(() => {
   </main>
 </template>
 
-<style scoped>
-/* Scoped styles are left intentionally blank to house everything in the main file below */
-</style>
+<style scoped></style>
