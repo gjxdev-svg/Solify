@@ -53,7 +53,7 @@ const router = createRouter({
     {
       path: '/profile',
       name: 'profile',
-      component: () => import('../views/placeholderPage.vue'),
+      component: () => import('../views/profilePage.vue'),
       props: { title: 'Profile' },
     },
     {

@@ -113,7 +113,6 @@ function isActive(name: string) {
 
 <template>
   <div class="app-shell">
-    <!-- Desktop-only left sidebar -->
     <aside class="sidebar">
       <button class="sidebar-logo" type="button" @click="router.push({ name: 'home' })">
         <span class="logo-title">solify</span>
@@ -227,6 +226,25 @@ function isActive(name: string) {
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
           </svg>
           <span class="sidebar-label">Notifications</span>
+        </button>
+
+        <button
+          class="sidebar-link"
+          type="button"
+          :class="{ active: isActive('messages') }"
+          @click="router.push({ name: 'messages' })"
+        >
+          <svg
+            class="icon-svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M22 2L11 13" />
+            <path d="M22 2l-7 20-4-9-9-4z" />
+          </svg>
+          <span class="sidebar-label">Messages</span>
         </button>
 
         <button
@@ -507,7 +525,6 @@ function isActive(name: string) {
       </nav>
     </div>
 
-    <!-- Desktop-only right rail -->
     <aside class="right-rail">
       <div
         class="rail-now-playing"
@@ -591,8 +608,6 @@ body {
   overflow: hidden;
 }
 
-/* ---------- Sidebar (desktop only) ---------- */
-
 .sidebar {
   display: none;
   flex-direction: column;
@@ -667,8 +682,6 @@ body {
   border: 2px solid currentColor;
   flex-shrink: 0;
 }
-
-/* ---------- Right rail (desktop only) ---------- */
 
 .right-rail {
   display: none;
@@ -792,8 +805,6 @@ body {
   font-size: 0.78rem;
   cursor: pointer;
 }
-
-/* ---------- Center feed column ---------- */
 
 .feed-column {
   flex: 1;
@@ -1151,8 +1162,6 @@ body {
 .nav-btn.active .nav-avatar {
   border-color: #e11d48;
 }
-
-/* ---------- Breakpoints ---------- */
 
 @media (min-width: 768px) {
   .mobile-only {
