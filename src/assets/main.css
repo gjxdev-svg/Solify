@@ -70,6 +70,8 @@ body {
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+  text-transform: uppercase;
+  font-size: 4.5rem;
 }
 
 .information {
@@ -106,7 +108,7 @@ body {
   max-width: 420px;
   background: #fbf9f4;
   padding: 48px 40px;
-  border-radius: 4px; /* Crisp, hard geometric edges replace bubbly corners */
+  border-radius: 20px; /* Crisp, hard geometric edges replace bubbly corners */
   border: 2px solid #2b2a27;
   /* Thick analog offset drop shadow */
   box-shadow: 8px 8px 0px #2b2a27;

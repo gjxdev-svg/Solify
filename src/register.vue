@@ -1,7 +1,27 @@
+<script setup>
+import { ref } from 'vue'
+
+const email = ref('')
+const password = ref('')
+
+const handleSignup = () => {
+  // Your code to send data to the server goes here
+  console.log(email.value, password.value)
+}
+</script>
+
 <template>
   <div class="success-page">
-    <div class="grain-overlay"></div>
     <div class="success-card">
+      <h2 class="logo-title">Solify</h2>
+      <h1 class="title">Sign Up Below</h1>
+      <div>
+        <form @submit.prevent="handleSignup">
+          <input type="email" v-model="email" /><br />
+          <input type="password" v-model="password" /><br />
+          <button type="submit">Sign Up</button>
+        </form>
+      </div>
       <div class="success-icon">✓</div>
       <h2 class="success-title">Page Loaded Successfully!</h2>
       <div class="decorative-line"></div>
@@ -21,15 +41,6 @@
   overflow: hidden;
 }
 
-/* Faux paper grain overlay */
-.grain-overlay {
-  position: absolute;
-  inset: 0;
-  opacity: 0.04;
-  pointer-events: none;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://w3.org id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-}
-
 .success-card {
   width: 100%;
   max-width: 480px;
@@ -40,6 +51,13 @@
   box-shadow: 8px 8px 0px #2b2a27; /* Thick analog offset drop shadow */
   text-align: center;
   z-index: 2;
+}
+
+.logo-title {
+  width: 100;
+  color: black;
+  font-size: 4rem;
+  text-transform: uppercase;
 }
 
 .success-icon {
