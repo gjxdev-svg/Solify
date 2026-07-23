@@ -203,6 +203,10 @@ const handleSignup = async (): Promise<void> => {
         <p class="switch-auth-mode">
           Don't have an account? <router-link to="/login" class="auth-link">Log In</router-link>
         </p>
+
+        <p class="switch-auth-mode2">
+          <router-link to="/" class="auth-link">Go Back home</router-link>
+        </p>
       </div>
     </div>
   </div>
@@ -415,9 +419,14 @@ const handleSignup = async (): Promise<void> => {
 }
 
 .switch-auth-mode {
-  margin-top: 32px;
+  margin-top: 25px;
   font-size: 0.9rem;
   color: #71717a;
+}
+
+.switch-auth-mode2 {
+  position: relative;
+  top: 20px;
 }
 
 .auth-link {

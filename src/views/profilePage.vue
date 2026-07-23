@@ -877,6 +877,8 @@ body {
 
 .sidebar .logo-title {
   font-size: 1.6rem;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .sidebar-nav {
