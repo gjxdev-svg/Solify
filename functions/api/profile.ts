@@ -22,7 +22,6 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     // Query D1 SQL database for this user
     const userProfile = await env.DB.prepare('SELECT * FROM users WHERE uid = ?1').bind(uid).first()
 
-    // GUARANTEES JSON OUTPUT: Always stringifies an object so .json() never crashes the browser!
     return new Response(JSON.stringify({ profile: userProfile || null }), {
       headers: { 'Content-Type': 'application/json' },
     })
