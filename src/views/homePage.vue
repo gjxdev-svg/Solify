@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { auth } from '@/firebase' // Ensure this path points to your firebase.ts file
 import { type Unsubscribe } from 'firebase/auth'
+import { getAuthHeaders } from '@/utils/authApi'
 
 interface Story {
   id: number
@@ -146,36 +147,39 @@ onMounted(() => {
       const userStory = stories.value.find((s) => s.id === 1)
 
       try {
-        // 1. Fetch their profile records from your custom Cloudflare D1 Database
-        const response = await fetch(`/api/profile?uid=${user.uid}`)
-        const data = (await response.json()) as {
-          profile: { username: string; handle: string; photoURL: string } | null
+        const headers = await getAuthHeaders()
+        const sessionRes = await fetch('/api/session', {
+          method: 'POST',
+          headers,
+        })
+        if (!sessionRes.ok) {
+          throw new Error('Failed to load user session')
         }
 
-        let finalName = ''
-        let finalAvatar = ''
-
-        if (data.profile) {
-          // User exists in D1! Pull their custom username and R2 avatar image link
-          finalName = data.profile.username
-          finalAvatar = data.profile.photoURL
-        } else {
-          // User doesn't exist in D1 yet (Brand new signup with no onboarding process)
-          const emailParts = user.email ? user.email.split('@') : []
-          const fallbackHandle = emailParts[0]
-            ? emailParts[0].toLowerCase().replace(/[^a-z0-9_]/g, '')
-            : 'user'
-          finalName = user.displayName || fallbackHandle
-          finalAvatar = user.photoURL || `https://pravatar.cc{user.uid}`
-
-          // Silently provision their brand new Cloudflare database entry in the background
-          const setupData = new FormData()
-          setupData.append('uid', user.uid)
-          setupData.append('username', finalName)
-          setupData.append('handle', fallbackHandle)
-
-          void fetch('/api/profile', { method: 'POST', body: setupData })
+        const sessionData = (await sessionRes.json()) as {
+          profile: {
+            uid: string
+            username: string
+            displayName: string
+            handle: string
+            photoURL: string
+            onboardingCompleted: number
+            deletionScheduledAt: number | null
+          } | null
+          deletionCanceled: boolean
         }
+
+        if (!sessionData.profile || sessionData.profile.onboardingCompleted !== 1) {
+          await router.push({ name: 'onboarding' })
+          return
+        }
+
+        if (sessionData.deletionCanceled) {
+          window.alert('Your account deletion was canceled because you logged back in.')
+        }
+
+        const finalName = sessionData.profile.username
+        const finalAvatar = sessionData.profile.photoURL || user.photoURL || 'https://pravatar.cc'
 
         // 2. Safely apply the verified Cloudflare metrics to your UI story layout component
         if (userStory) {

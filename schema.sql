@@ -1,8 +1,13 @@
 CREATE TABLE IF NOT EXISTS users (
   uid TEXT PRIMARY KEY,
   username TEXT NOT NULL,
+  displayName TEXT NOT NULL,
   handle TEXT NOT NULL UNIQUE,
   photoURL TEXT,
+  onboardingCompleted INTEGER NOT NULL DEFAULT 0,
+  deletionRequestedAt INTEGER,
+  deletionScheduledAt INTEGER,
+  firebaseRefreshToken TEXT,
   updatedAt INTEGER NOT NULL
 );
 
@@ -36,4 +41,15 @@ CREATE TABLE IF NOT EXISTS messages (
   text TEXT NOT NULL,
   createdAt INTEGER NOT NULL,
   FOREIGN KEY (senderUid) REFERENCES users(uid) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS user_rate_limits (
+  uid TEXT NOT NULL,
+  action TEXT NOT NULL,
+  windowStart INTEGER NOT NULL,
+  requestCount INTEGER NOT NULL DEFAULT 0,
+  penaltyLevel INTEGER NOT NULL DEFAULT 0,
+  blockedUntil INTEGER NOT NULL DEFAULT 0,
+  updatedAt INTEGER NOT NULL,
+  PRIMARY KEY (uid, action)
 );
