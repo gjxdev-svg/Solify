@@ -3,9 +3,6 @@ interface Env {
   SOLIFY_BUCKET: R2Bucket
 }
 
-// ========================================================
-// 1. GET: FETCH USER PROFILE DATA ON HOMEPAGE LOAD
-// ========================================================
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   try {
     const { request, env } = context
@@ -34,24 +31,21 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 }
 
-// ========================================================
-// 2. POST: SAVE OR UPDATE USER PROFILE
-// ========================================================
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
     const { request, env } = context
     const formData = await request.formData()
+
     const uid = formData.get('uid') as string | null
     const username = formData.get('username') as string | null
     const handle = formData.get('handle') as string | null
     const avatarFile = formData.get('avatar') as File | null
 
     if (!uid || !username || !handle) {
-      return new Response('Missing required parameters', { status: 400 })
+      return new Response('Missing user configuration parameters', { status: 400 })
     }
 
     let photoURL = ''
-
     if (avatarFile && avatarFile.size > 0) {
       const fileKey = `avatars/${uid}.jpg`
       await env.SOLIFY_BUCKET.put(fileKey, avatarFile, {
@@ -61,25 +55,28 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       photoURL = `${url.origin}/${fileKey}`
     }
 
+    const timestamp = Date.now()
+
+    // Resolves structural upserts and fulfills mandatory updatedAt requirements
     await env.DB.prepare(
       `
       INSERT INTO users (uid, username, handle, photoURL, updatedAt)
       VALUES (?1, ?2, ?3, ?4, ?5)
       ON CONFLICT(uid) DO UPDATE SET
-        username = ?2,
-        handle = ?3,
-        photoURL = CASE WHEN ?4 != '' THEN ?4 ELSE photoURL END,
-        updatedAt = ?5
+        username = excluded.username,
+        handle = excluded.handle,
+        photoURL = CASE WHEN excluded.photoURL != '' THEN excluded.photoURL ELSE users.photoURL END,
+        updatedAt = excluded.updatedAt
     `,
     )
-      .bind(uid, username.trim(), handle.trim().toLowerCase(), photoURL, Date.now())
+      .bind(uid, username, handle, photoURL, timestamp)
       .run()
 
-    return new Response(JSON.stringify({ success: true, photoURL }), {
+    return new Response(JSON.stringify({ success: true }), {
       headers: { 'Content-Type': 'application/json' },
     })
-  } catch (error: unknown) {
-    console.error('D1 Save Error:', error)
-    return new Response('Internal Server Error', { status: 500 })
+  } catch (err: unknown) {
+    console.error('Profile execution sync error:', err)
+    return new Response('Profile operational sync failure', { status: 500 })
   }
 }
