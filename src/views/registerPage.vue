@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { mockCloudDatabase } from '@/utils/mockDb'
+import { auth, googleProvider } from '@/firebase' // Ensure path matches your firebase.ts file
+import { createUserWithEmailAndPassword, signInWithPopup } from 'firebase/auth'
+
+// Explicitly type the minimal shape of a Firebase error to satisfy strict typing
+interface FirebaseErrorLike {
+  code: string
+  message: string
+}
 
 const router = useRouter()
 const email = ref('')
@@ -11,33 +18,64 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
-
 const togglePasswordVisibility = (): void => {
   isPasswordVisible.value = !isPasswordVisible.value
 }
 
+// Helper utility to safely detect and map TypeScript errors cleanly
+const isFirebaseError = (error: unknown): error is FirebaseErrorLike => {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    typeof (error as Record<string, unknown>).code === 'string'
+  )
+}
+
+// ==========================================
+// METHOD 1: Create Account via Google Auth
+// ==========================================
 const handleGoogleLogin = async (): Promise<void> => {
   errorMessage.value = ''
   successMessage.value = ''
   isLoading.value = true
 
   try {
-    await sleep(2000)
+    const userCredential = await signInWithPopup(auth, googleProvider)
 
-    console.log('Server response: 200 OK - Authenticated via Google Oauth')
-    successMessage.value = 'Google login successful! Redirecting...'
+    console.log('Firebase Registration: 201 Created via Google Oauth', userCredential.user)
+    successMessage.value = 'Google registration successful! Redirecting...'
 
-    await sleep(1500)
-    await router.push('/home')
-  } catch (error) {
-    errorMessage.value = 'Google authentication failed.'
-    console.error(error)
-  } finally {
+    setTimeout(() => {
+      void router.push('/home')
+    }, 1200)
+  } catch (error: unknown) {
     isLoading.value = false
+
+    if (isFirebaseError(error)) {
+      // UPDATED LINE HERE: Matches the behavior of your new console setting
+      if (
+        error.code === 'auth/email-already-in-use' ||
+        error.code === 'auth/account-exists-with-different-credential'
+      ) {
+        errorMessage.value =
+          'An account already exists with this email address. Please use the Login page instead.'
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        errorMessage.value = 'Google registration window was closed.'
+      } else {
+        errorMessage.value = 'Google registration failed.'
+      }
+      console.error('Firebase Auth Error:', error.code, error.message)
+    } else {
+      errorMessage.value = 'Google registration failed.'
+      console.error('Unknown Error:', error)
+    }
   }
 }
 
+// ==========================================
+// METHOD 2: Create Account via Email & Password
+// ==========================================
 const handleSignup = async (): Promise<void> => {
   errorMessage.value = ''
   successMessage.value = ''
@@ -47,6 +85,7 @@ const handleSignup = async (): Promise<void> => {
     return
   }
 
+  // Your custom password security rule
   if (email.value.toLowerCase().includes(password.value.toLowerCase())) {
     errorMessage.value = 'Security error: Your email address cannot contain your password.'
     return
@@ -55,38 +94,37 @@ const handleSignup = async (): Promise<void> => {
   isLoading.value = true
 
   try {
-    await sleep(1500)
+    await createUserWithEmailAndPassword(auth, email.value.trim(), password.value)
 
-    const emailExists = mockCloudDatabase.some(
-      (user) => user.email.toLowerCase() === email.value.toLowerCase().trim(),
-    )
-
-    if (emailExists) {
-      throw new Error('This email is already registered to an account.')
-    }
-
-    console.log('Server response: 201 Created', {
-      email: email.value,
-      password: password.value,
-    })
-
+    console.log('Firebase Registration: 201 Created via Email/Password', { email: email.value })
     successMessage.value = 'Account successfully created! Redirecting...'
 
-    await sleep(2000)
+    setTimeout(() => {
+      void router.push('/home')
 
-    await router.push('/home')
-
-    email.value = ''
-    password.value = ''
-    isPasswordVisible.value = false
+      // Clean up inputs on exit
+      email.value = ''
+      password.value = ''
+      isPasswordVisible.value = false
+    }, 1200)
   } catch (error: unknown) {
-    if (error instanceof Error) {
-      errorMessage.value = error.message
+    isLoading.value = false
+
+    if (isFirebaseError(error)) {
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage.value = 'This email is already registered to an account.'
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage.value = 'Please provide a valid email format.'
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage.value = 'Password is too weak. Firebase requires at least 6 characters.'
+      } else {
+        errorMessage.value = 'An error occurred during signup.'
+      }
+      console.error('Firebase Auth Error:', error.code, error.message)
     } else {
       errorMessage.value = 'An error occurred during signup.'
+      console.error('Unknown Error:', error)
     }
-  } finally {
-    isLoading.value = false
   }
 }
 </script>
@@ -202,6 +240,10 @@ const handleSignup = async (): Promise<void> => {
 
         <p class="switch-auth-mode">
           Don't have an account? <router-link to="/login" class="auth-link">Log In</router-link>
+        </p>
+
+        <p class="switch-auth-mode2">
+          <router-link to="/" class="auth-link">Go Back home</router-link>
         </p>
       </div>
     </div>
@@ -415,9 +457,14 @@ const handleSignup = async (): Promise<void> => {
 }
 
 .switch-auth-mode {
-  margin-top: 32px;
+  margin-top: 25px;
   font-size: 0.9rem;
   color: #71717a;
+}
+
+.switch-auth-mode2 {
+  position: relative;
+  top: 20px;
 }
 
 .auth-link {

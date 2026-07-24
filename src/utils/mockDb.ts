@@ -1,3 +1,5 @@
+// FAKE DATABASE (NOT REAL, THE REAL ONE IS IN FIREBASE AUTHENTICATION UNDER: gjx.dev@gmail.com)
+
 // Define a clear interface for user objects to ensure type safety
 export interface MockUser {
   email: string

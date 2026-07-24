@@ -1,0 +1,18 @@
+#:schema https://cloudflare.com
+name = "solify"
+compatibility_date = "2026-04-14"
+
+# 1. TELL CLOUDFLARE WHERE YOUR COMPILED VUE SITE LIVES
+[assets]
+directory = "./dist"
+
+# 2. Your Profile Pictures Bucket Connection
+[[r2_buckets]]
+binding = "SOLIFY_BUCKET"
+bucket_name = "solify-profile-pics"
+
+# 3. Your User Profiles Database Connection
+[[d1_databases]]
+binding = "DB"
+database_name = "solify-user-db"
+database_id = "7b007987-7ffc-4e78-9d97-601984075a19"
