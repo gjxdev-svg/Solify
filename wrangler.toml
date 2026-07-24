@@ -2,6 +2,9 @@
 name = "solify"
 compatibility_date = "2026-04-14"
 
+[build]
+compatibility_flags = [ "typescript_pages_functions" ]
+
 # 1. Your Profile Pictures Bucket Connection
 [[r2_buckets]]
 binding = "SOLIFY_PROFILE_PICTURES_BUCKET"
