@@ -120,7 +120,6 @@ const loadFeedData = async (): Promise<void> => {
       }>
     }
 
-    // Remap the incoming Cloudflare data straight into your reactive posts array
     posts.value = data.feed.map((item) => ({
       id: item.postId,
       username: item.username,
