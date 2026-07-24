@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { auth } from '@/firebase' // Ensure this path points to your firebase.ts file
+import { type Unsubscribe } from 'firebase/auth'
 
 interface Story {
   id: number
@@ -28,11 +30,14 @@ interface Post {
 const router = useRouter()
 const route = useRoute()
 
+// Holder for the live listener cleanup hook
+let unsubscribe: Unsubscribe | null = null
+
 const stories = ref<Story[]>([
   {
     id: 1,
-    name: 'Your Story',
-    avatar: 'https://i.pravatar.cc/150?u=you',
+    name: 'Your Story', // Will update dynamically when Firebase loads
+    avatar: 'https://i.pravatar.cc/150?u=you', // Will update dynamically
     viewed: true,
     isUser: true,
   },
@@ -89,6 +94,124 @@ const nowPlaying = ref({
 })
 const isPlaying = ref(true)
 
+// ==========================================
+// API DATA FETCHING ROUTINES
+// ==========================================
+const loadFeedData = async (): Promise<void> => {
+  try {
+    const res = await fetch('/api/feed')
+    if (!res.ok) {
+      throw new Error('Network response was not ok')
+    }
+
+    const data = (await res.json()) as {
+      feed: Array<{
+        postId: number
+        postImage: string
+        caption: string
+        likesCount: number
+        username: string
+        handle: string
+        userAvatar: string | null
+        trackName: string | null
+        artistName: string | null
+        albumCover: string | null
+        spotifyUrl: string | null
+      }>
+    }
+
+    posts.value = data.feed.map((item) => ({
+      id: item.postId,
+      username: item.username,
+      location: `@${item.handle}`, // Displays their clean handle as the location line
+      avatar: item.userAvatar || 'https://pravatar.cc',
+      verified: true,
+      postImage: item.postImage,
+      likes: Number(item.likesCount).toLocaleString(),
+      caption: item.caption,
+      isLiked: false,
+      isSaved: false,
+    }))
+  } catch (err) {
+    console.error('Failed to populate feed from Cloudflare D1:', err)
+  }
+}
+
+// ==========================================
+// LIVE AUTH SESSION LIFECYCLE HOOKS
+// ==========================================
+onMounted(() => {
+  unsubscribe = auth.onAuthStateChanged(async (user) => {
+    if (user) {
+      const userStory = stories.value.find((s) => s.id === 1)
+
+      try {
+        // 1. Fetch their profile records from your custom Cloudflare D1 Database
+        const response = await fetch(`/api/profile?uid=${user.uid}`)
+        const data = (await response.json()) as {
+          profile: { username: string; handle: string; photoURL: string } | null
+        }
+
+        let finalName = ''
+        let finalAvatar = ''
+
+        if (data.profile) {
+          // User exists in D1! Pull their custom username and R2 avatar image link
+          finalName = data.profile.username
+          finalAvatar = data.profile.photoURL
+        } else {
+          // User doesn't exist in D1 yet (Brand new signup with no onboarding process)
+          const emailParts = user.email ? user.email.split('@') : []
+          const fallbackHandle = emailParts[0]
+            ? emailParts[0].toLowerCase().replace(/[^a-z0-9_]/g, '')
+            : 'user'
+          finalName = user.displayName || fallbackHandle
+          finalAvatar = user.photoURL || `https://pravatar.cc{user.uid}`
+
+          // Silently provision their brand new Cloudflare database entry in the background
+          const setupData = new FormData()
+          setupData.append('uid', user.uid)
+          setupData.append('username', finalName)
+          setupData.append('handle', fallbackHandle)
+
+          void fetch('/api/profile', { method: 'POST', body: setupData })
+        }
+
+        // 2. Safely apply the verified Cloudflare metrics to your UI story layout component
+        if (userStory) {
+          userStory.name = finalName
+          userStory.avatar = finalAvatar
+        }
+
+        // >>> PLACE THE FEED LOAD CALL HERE <<<
+        await loadFeedData()
+      } catch (err) {
+        console.error(
+          'Cloudflare data fetch failure, defaulting to Firebase local auth state tokens:',
+          err,
+        )
+        // Global safe layout emergency fallbacks if your backend network connection drops
+        if (userStory) {
+          const emailParts = user.email ? user.email.split('@') : []
+          userStory.name = user.displayName || (emailParts[0] ? emailParts[0] : 'You')
+          userStory.avatar = user.photoURL || 'https://pravatar.cc'
+        }
+      }
+    } else {
+      void router.push('/login')
+    }
+  })
+})
+
+onUnmounted(() => {
+  if (unsubscribe) {
+    unsubscribe() // Clean up active backend websockets to prevent performance leaks
+  }
+})
+
+// ==========================================
+// INTERACTIVE PAGE METHODS
+// ==========================================
 function togglePlay(event: Event) {
   event.stopPropagation()
   isPlaying.value = !isPlaying.value
@@ -96,7 +219,7 @@ function togglePlay(event: Event) {
 
 function openStory(story: Story) {
   if (story.isUser) {
-    router.push({ name: 'create' })
+    void router.push({ name: 'create' })
     return
   }
   story.viewed = true

@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { mockCloudDatabase } from '@/utils/mockDb'
+import { auth, googleProvider } from '@/firebase' // Ensure path matches your firebase.ts file
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth'
+
+// Updated interface to perfectly match what 'credentialFromError' expects
+interface FirebaseErrorLike {
+  code: string
+  message: string
+  name: string // Added to fix the assignment error
+}
 
 const router = useRouter()
 const email = ref('')
@@ -11,33 +19,73 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
-
 const togglePasswordVisibility = (): void => {
   isPasswordVisible.value = !isPasswordVisible.value
 }
 
+// Helper utility to safely detect and typecast strict errors
+const isFirebaseError = (error: unknown): error is FirebaseErrorLike => {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    'name' in error && // Verifying property exists
+    typeof (error as Record<string, unknown>).code === 'string'
+  )
+}
+
+// ==========================================
+// METHOD 1: Create Account via Google Auth
+// ==========================================
 const handleGoogleLogin = async (): Promise<void> => {
   errorMessage.value = ''
   successMessage.value = ''
   isLoading.value = true
 
   try {
-    await sleep(2000)
+    const userCredential = await signInWithPopup(auth, googleProvider)
 
-    console.log('Server response: 200 OK - Authenticated via Google Oauth')
+    console.log('Server response: 200 OK - Authenticated via Google', userCredential.user)
     successMessage.value = 'Google login successful! Redirecting...'
 
-    await sleep(1500)
-    await router.push('/home')
-  } catch (error) {
-    errorMessage.value = 'Google authentication failed.'
-    console.error(error)
-  } finally {
+    setTimeout(() => {
+      void router.push('/home')
+    }, 1200)
+  } catch (error: unknown) {
     isLoading.value = false
+
+    if (isFirebaseError(error)) {
+      if (error.code === 'auth/account-exists-with-different-credential') {
+        // Construct a clean, isolated object with ONLY the properties credentialFromError needs.
+        // This structural match satisfies the strict TypeScript checker without needing 'any'.
+        const typedError = {
+          code: error.code,
+          message: error.message,
+          name: error.name,
+        }
+
+        const pendingCredential = GoogleAuthProvider.credentialFromError(typedError)
+
+        if (pendingCredential) {
+          errorMessage.value =
+            'An account already exists with this email using a password. Please sign in with your email and password first.'
+        }
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        errorMessage.value = 'Google authentication window was closed.'
+      } else {
+        errorMessage.value = 'Google authentication failed.'
+      }
+      console.error('Firebase Auth Error:', error.code, error.message)
+    } else {
+      errorMessage.value = 'Google authentication failed.'
+      console.error('Unknown Error:', error)
+    }
   }
 }
 
+// ==========================================
+// METHOD 2: Email & Password Login
+// ==========================================
 const handleLogin = async (): Promise<void> => {
   errorMessage.value = ''
   successMessage.value = ''
@@ -50,33 +98,41 @@ const handleLogin = async (): Promise<void> => {
   isLoading.value = true
 
   try {
-    await sleep(1500)
-
-    const user = mockCloudDatabase.find(
-      (u) => u.email.toLowerCase() === email.value.toLowerCase().trim(),
-    )
-
-    if (!user || user.password !== password.value) {
-      throw new Error('Invalid email or password.')
-    }
+    await signInWithEmailAndPassword(auth, email.value.trim(), password.value)
 
     console.log('Server response: 200 OK', { email: email.value })
     successMessage.value = 'Login successful! Welcome back...'
 
-    await sleep(2000)
-    await router.push('/home')
+    setTimeout(() => {
+      void router.push('/home')
 
-    email.value = ''
-    password.value = ''
-    isPasswordVisible.value = false
+      email.value = ''
+      password.value = ''
+      isPasswordVisible.value = false
+    }, 1200)
   } catch (error: unknown) {
-    if (error instanceof Error) {
-      errorMessage.value = error.message
+    isLoading.value = false
+
+    if (isFirebaseError(error)) {
+      if (
+        error.code === 'auth/invalid-credential' ||
+        error.code === 'auth/user-not-found' ||
+        error.code === 'auth/wrong-password'
+      ) {
+        errorMessage.value = 'Invalid email or password.'
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage.value = 'Please provide a valid email format.'
+      } else if (error.code === 'auth/too-many-requests') {
+        errorMessage.value =
+          'Account temporarily locked due to too many failed attempts. Try again later.'
+      } else {
+        errorMessage.value = 'An error occurred during login.'
+      }
+      console.error('Firebase Auth Error:', error.code, error.message)
     } else {
       errorMessage.value = 'An error occurred during login.'
+      console.error('Unknown Error:', error)
     }
-  } finally {
-    isLoading.value = false
   }
 }
 </script>
@@ -190,6 +246,10 @@ const handleLogin = async (): Promise<void> => {
 
         <p class="switch-auth-mode">
           Don't have an account? <router-link to="/register" class="auth-link">Sign Up</router-link>
+        </p>
+
+        <p class="switch-auth-mode2">
+          <router-link to="/" class="auth-link">Go Back home</router-link>
         </p>
       </div>
     </div>
@@ -417,6 +477,11 @@ const handleLogin = async (): Promise<void> => {
   margin-top: 32px;
   font-size: 0.9rem;
   color: #71717a;
+}
+
+.switch-auth-mode2 {
+  position: relative;
+  top: 20px;
 }
 
 .auth-link {
