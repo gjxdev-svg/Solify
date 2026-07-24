@@ -1,15 +1,21 @@
 interface Env {
   DB: D1Database
   SOLIFY_BUCKET: R2Bucket
+  FIREBASE_API_KEY: string
 }
+
+import { verifyFirebaseUser, jsonResponse } from './_auth'
+import { enforceRateLimit } from './_rateLimit'
+import { purgeDueDeletions } from './_accountLifecycle'
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
     const { request, env } = context
+    const { uid } = await verifyFirebaseUser(request, env)
+    await enforceRateLimit(env, uid, 'post_write')
+    await purgeDueDeletions(env)
     const formData = await request.formData()
 
-    // 1. Extract structural user and post elements
-    const uid = formData.get('uid') as string | null
     const caption = formData.get('caption') as string | null
     const imageFile = formData.get('postImage') as File | null
 
@@ -19,11 +25,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const albumCover = formData.get('albumCover') as string | null
     const spotifyUrl = formData.get('spotifyUrl') as string | null
 
-    if (!uid || !imageFile || imageFile.size === 0) {
-      return new Response(JSON.stringify({ error: 'Missing required UID or Post Image file' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      })
+    if (!imageFile || imageFile.size === 0) {
+      return jsonResponse({ error: 'Missing required Post Image file' }, 400)
     }
 
     // Generate unique identifier for R2 asset storage keys
@@ -74,14 +77,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         .run()
     }
 
-    return new Response(JSON.stringify({ success: true, postId: postResult.id }), {
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return jsonResponse({ success: true, postId: postResult.id })
   } catch (error: unknown) {
+    if (error instanceof Response) {
+      return error
+    }
     console.error('Critical Post API failure:', error)
-    return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return jsonResponse({ error: 'Internal Server Error' }, 500)
   }
 }

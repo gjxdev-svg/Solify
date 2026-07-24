@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { auth } from '@/firebase'
+import { type Unsubscribe, signOut } from 'firebase/auth'
+import { getAuthHeaders } from '@/utils/authApi'
 
 interface GridPost {
   id: number
@@ -13,6 +16,7 @@ interface GridPost {
 
 const router = useRouter()
 const route = useRoute()
+let unsubscribe: Unsubscribe | null = null
 
 const profile = ref({
   username: 'joshua_l',
@@ -103,7 +107,6 @@ function openConversation() {
   router.push({ name: 'messages', query: { with: profile.value.username } })
 }
 
-/* --- Owner-only account controls (simulated) --- */
 const optionsOpen = ref(false)
 const avatarFileInput = ref<HTMLInputElement | null>(null)
 
@@ -136,16 +139,39 @@ function triggerAvatarChange() {
   avatarFileInput.value?.click()
 }
 
-function onAvatarFileSelected(event: Event) {
+async function onAvatarFileSelected(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
+
   const reader = new FileReader()
   reader.onload = () => {
     profile.value.avatar = reader.result as string
-    showToast('Profile photo updated')
   }
   reader.readAsDataURL(file)
+
+  try {
+    const headers = await getAuthHeaders()
+    const formData = new FormData()
+    formData.append('username', profile.value.username)
+    formData.append('displayName', profile.value.displayName)
+    formData.append('avatar', file)
+
+    const res = await fetch('/api/profile', {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    if (!res.ok) {
+      const data = (await res.json()) as { error?: string }
+      throw new Error(data.error || 'Failed to update profile photo')
+    }
+    showToast('Profile photo updated')
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to update profile photo'
+    showToast(message)
+  }
+
   input.value = ''
 }
 
@@ -161,7 +187,7 @@ function cancelEditUsername() {
   usernameError.value = ''
 }
 
-function saveUsername() {
+async function saveUsername() {
   const next = usernameDraft.value.trim().toLowerCase()
   if (!next) {
     usernameError.value = 'Username cannot be empty'
@@ -171,9 +197,29 @@ function saveUsername() {
     usernameError.value = 'Only letters, numbers, periods and underscores'
     return
   }
-  profile.value.username = next
-  isEditingUsername.value = false
-  showToast('Username updated')
+
+  try {
+    const headers = await getAuthHeaders()
+    const formData = new FormData()
+    formData.append('username', next)
+    formData.append('displayName', profile.value.displayName)
+    const res = await fetch('/api/profile', {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    if (!res.ok) {
+      const data = (await res.json()) as { error?: string }
+      throw new Error(data.error || 'Failed to save username')
+    }
+
+    profile.value.username = next
+    isEditingUsername.value = false
+    showToast('Username updated')
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to save username'
+    showToast(message)
+  }
 }
 
 function viewArchive() {
@@ -188,7 +234,8 @@ function openSettings() {
 
 function logOut() {
   closeOptions()
-  router.push({ name: 'login' })
+  void signOut(auth)
+  void router.push({ name: 'login' })
 }
 
 function requestDeleteAccount() {
@@ -200,10 +247,97 @@ function cancelDeleteAccount() {
   showDeleteConfirm.value = false
 }
 
-function confirmDeleteAccount() {
+async function confirmDeleteAccount() {
   showDeleteConfirm.value = false
-  router.push({ name: 'landing' })
+  try {
+    const headers = await getAuthHeaders()
+    const user = auth.currentUser
+    if (!user) {
+      throw new Error('No active user session')
+    }
+
+    const response = await fetch('/api/account-delete', {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ refreshToken: user.refreshToken }),
+    })
+
+    const data = (await response.json()) as { deletionScheduledAt?: number; error?: string }
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to schedule account deletion')
+    }
+
+    const dateLabel = data.deletionScheduledAt
+      ? new Date(data.deletionScheduledAt).toLocaleDateString()
+      : '30 days from now'
+    showToast(`Deletion scheduled for ${dateLabel}. Log in again to cancel.`)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Failed to schedule account deletion'
+    showToast(message)
+  }
 }
+
+const loadProfile = async (): Promise<void> => {
+  const headers = await getAuthHeaders()
+  const response = await fetch('/api/session', {
+    method: 'POST',
+    headers,
+  })
+
+  const payload = (await response.json()) as {
+    profile: {
+      username: string
+      displayName: string
+      photoURL: string
+      onboardingCompleted: number
+    } | null
+    deletionCanceled: boolean
+    error?: string
+  }
+
+  if (!response.ok) {
+    throw new Error(payload.error || 'Unable to load profile')
+  }
+  if (!payload.profile || payload.profile.onboardingCompleted !== 1) {
+    await router.push({ name: 'onboarding' })
+    return
+  }
+
+  profile.value.username = payload.profile.username
+  profile.value.displayName = payload.profile.displayName
+  if (payload.profile.photoURL) {
+    profile.value.avatar = payload.profile.photoURL
+  }
+  usernameDraft.value = payload.profile.username
+
+  if (payload.deletionCanceled) {
+    showToast('Deletion request canceled because you logged in again.')
+  }
+}
+
+onMounted(() => {
+  unsubscribe = auth.onAuthStateChanged(async (user) => {
+    if (!user) {
+      await router.push({ name: 'login' })
+      return
+    }
+    try {
+      await loadProfile()
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unable to load profile'
+      showToast(message)
+    }
+  })
+})
+
+onUnmounted(() => {
+  if (unsubscribe) {
+    unsubscribe()
+  }
+})
 </script>
 
 <template>
@@ -553,8 +687,8 @@ function confirmDeleteAccount() {
           <div class="modal-card" @click.stop>
             <h3 class="modal-title">Delete your account?</h3>
             <p class="modal-body">
-              This is a simulated action for preview purposes — your posts, followers, and profile
-              info would be permanently removed. This can't be undone.
+              Your account stays active for 30 days, then Firebase Auth and your D1/R2 data are
+              permanently deleted. If you log in before then, the deletion request is canceled.
             </p>
             <div class="modal-actions">
               <button class="modal-cancel-btn" type="button" @click="cancelDeleteAccount">
