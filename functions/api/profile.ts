@@ -13,19 +13,25 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     const uid = url.searchParams.get('uid')
 
     if (!uid) {
-      return new Response('Missing uid parameter', { status: 400 })
+      return new Response(JSON.stringify({ error: 'Missing uid parameter', profile: null }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
     // Query D1 SQL database for this user
     const userProfile = await env.DB.prepare('SELECT * FROM users WHERE uid = ?1').bind(uid).first()
 
-    // If user profile is not found, return null cleanly so frontend knows to provision it
+    // GUARANTEES JSON OUTPUT: Always stringifies an object so .json() never crashes the browser!
     return new Response(JSON.stringify({ profile: userProfile || null }), {
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (error: unknown) {
-    console.error('D1 Fetch Error:', error)
-    return new Response('Internal Server Error', { status: 500 })
+    console.error('D1 Fetch Error Logs:', error)
+    return new Response(JSON.stringify({ error: 'Internal Server Error', profile: null }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    })
   }
 }
 
