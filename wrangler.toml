@@ -1,6 +1,11 @@
 #:schema https://cloudflare.com
 name = "solify"
 compatibility_date = "2026-04-14"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+FIREBASE_API_KEY = "AIzaSyCmD7SuYArSlQs_Z5pqjkAYr7sa9kmBjnA"
+ACCOUNT_PURGE_SECRET = "replace-me-in-cloudflare-vars"
 
 # 1. TELL CLOUDFLARE WHERE YOUR COMPILED VUE SITE LIVES
 [assets]

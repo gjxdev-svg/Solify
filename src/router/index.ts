@@ -27,6 +27,11 @@ const router = createRouter({
       component: () => import('../views/homePage.vue'),
     },
     {
+      path: '/onboarding',
+      name: 'onboarding',
+      component: () => import('../views/onboardingPage.vue'),
+    },
+    {
       path: '/search',
       name: 'search',
       component: () => import('../views/placeholderPage.vue'),
