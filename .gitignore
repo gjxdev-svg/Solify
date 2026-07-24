@@ -38,11 +38,9 @@ __screenshots__/
 # Vite
 *.timestamp-*-*.mjs
 
-# Local environment variables files
-.env
-.env.local
-.env.*.local
-
-# Cloudflare Wrangler local database/cache directories
-.wrangler/
-.cloudflare/
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
