@@ -43,7 +43,7 @@
     "vue-tsc": "^3.3.5"
   },
   "engines": {
-    "node": "^>=22.16.0"
+    "node": ">=22.16.0"
   },
   "allowScripts": {
     "@firebase/util@1.15.1": true,
